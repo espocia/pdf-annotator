@@ -7,6 +7,7 @@ declare global {
     NutrientViewer?: {
       load: (options: { container: HTMLElement; document: string }) => void;
       unload: (container: HTMLElement) => void;
+      export?: () => Promise<string>;
     };
   }
 }
@@ -16,6 +17,13 @@ export default function App() {
   const [pdfBase64, setPdfBase64] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
+  // Load from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("pdfBase64");
+    if (stored) setPdfBase64(stored);
+  }, []);
+
+  // Load viewer when pdfBase64 is set
   useEffect(() => {
     if (!pdfBase64 || !window.NutrientViewer || !containerRef.current) return;
 
@@ -28,22 +36,53 @@ export default function App() {
     });
 
     return () => {
-      if (container) {
-        NutrientViewer?.unload(container);
-      }
+      NutrientViewer?.unload(container);
     };
   }, [pdfBase64]);
 
+  // Auto-save edits with debounce
+  useEffect(() => {
+    if (!window.NutrientViewer?.export) return;
+
+    const persist = async () => {
+      try {
+        const updated = await window.NutrientViewer!.export!();
+        setPdfBase64(updated);
+        localStorage.setItem("pdfBase64", updated);
+      } catch (err) {
+        console.error("Failed to export PDF:", err);
+      }
+    };
+
+    const debounce = (() => {
+      let timeout: NodeJS.Timeout;
+      return () => {
+        clearTimeout(timeout);
+        timeout = setTimeout(persist, 1000);
+      };
+    })();
+
+    document.addEventListener("click", debounce);
+    document.addEventListener("input", debounce);
+
+    return () => {
+      document.removeEventListener("click", debounce);
+      document.removeEventListener("input", debounce);
+    };
+  }, []);
+
+  // Handle file upload
   const handleFile = (file: File) => {
     if (file.type === "application/pdf") {
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result;
         if (typeof result === "string") {
-          setPdfBase64(result); // Base64 string
+          setPdfBase64(result);
+          localStorage.setItem("pdfBase64", result);
         }
       };
-      reader.readAsDataURL(file); // Reads file as base64 data URI
+      reader.readAsDataURL(file);
     } else {
       alert("Please upload a valid PDF file.");
     }
@@ -108,14 +147,17 @@ export default function App() {
         <>
           <div className="p-4 bg-white border-b flex justify-between items-center shadow-sm">
             <span className="text-sm text-gray-600">Now viewing: your uploaded PDF</span>
-            <button
-              onClick={() => {
-                setPdfBase64(null);
-              }}
-              className="text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
-            >
-              Upload Another
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setPdfBase64(null);
+                  localStorage.removeItem("pdfBase64");
+                }}
+                className="text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
+              >
+                Upload Another
+              </button>
+            </div>
           </div>
           <div ref={containerRef} className="flex-1 overflow-hidden" />
         </>
