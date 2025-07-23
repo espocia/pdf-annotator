@@ -13,18 +13,18 @@ declare global {
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfBase64, setPdfBase64] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
   useEffect(() => {
-    if (!pdfUrl || !window.NutrientViewer || !containerRef.current) return;
+    if (!pdfBase64 || !window.NutrientViewer || !containerRef.current) return;
 
     const container = containerRef.current;
     const { NutrientViewer } = window;
 
     NutrientViewer.load({
       container,
-      document: pdfUrl,
+      document: pdfBase64,
     });
 
     return () => {
@@ -32,12 +32,18 @@ export default function App() {
         NutrientViewer?.unload(container);
       }
     };
-  }, [pdfUrl]);
+  }, [pdfBase64]);
 
   const handleFile = (file: File) => {
     if (file.type === "application/pdf") {
-      const url = URL.createObjectURL(file);
-      setPdfUrl(url);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result === "string") {
+          setPdfBase64(result); // Base64 string
+        }
+      };
+      reader.readAsDataURL(file); // Reads file as base64 data URI
     } else {
       alert("Please upload a valid PDF file.");
     }
@@ -57,7 +63,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen">
-      {!pdfUrl ? (
+      {!pdfBase64 ? (
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -104,8 +110,7 @@ export default function App() {
             <span className="text-sm text-gray-600">Now viewing: your uploaded PDF</span>
             <button
               onClick={() => {
-                setPdfUrl(null);
-                URL.revokeObjectURL(pdfUrl);
+                setPdfBase64(null);
               }}
               className="text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
             >
