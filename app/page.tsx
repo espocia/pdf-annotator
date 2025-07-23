@@ -115,14 +115,6 @@ export default function App() {
           <div ref={containerRef} className="flex-1 overflow-hidden" />
         </>
       )}
-
-      <style global jsx>{`
-				* {
-					margin: 0;
-					padding: 0;
-					box-sizing: border-box;
-				}
-			`}</style>
     </div>
   );
 }
